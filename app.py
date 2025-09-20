@@ -1,7 +1,6 @@
 # app.py
 # Sales & Stock Management Dashboard linked to a fixed Google Sheet with Profit calculation
-# Fixed imports and Streamlit data leak warning by setting page config first
-# Requirements: pip install streamlit pandas gspread oauth2client plotly
+# Streamlit page config first, safe stock update logic
 
 # --- Standard library imports ------------------------------------------------
 from datetime import datetime
@@ -18,7 +17,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 # --- Config -----------------------------------------------------------------
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1r4BLV7NFdtagJPjjneqKyUrGbb1qnzyUqCaDuQHqFZU/edit?gid=0"
-CREDS_FILE = "service_account.json"  # Make sure this file is in your app folder
+CREDS_FILE = "service_account.json"
 
 # --- Google Sheets Setup ---------------------------------------------------
 
@@ -47,7 +46,6 @@ def sanitize_and_prepare(sales_df, stock_df):
     sales_df = sales_df.copy()
     stock_df = stock_df.copy()
 
-    # Ensure correct types
     if "Date" in sales_df.columns:
         sales_df["Date"] = pd.to_datetime(sales_df["Date"], errors="coerce")
     for col in ["Quantity Sold", "Unit Price", "Cost Price"]:
@@ -62,7 +60,6 @@ def sanitize_and_prepare(sales_df, stock_df):
     for col in ["Opening Stock", "Stock In", "Stock Out", "Min Threshold"]:
         stock_df[col] = pd.to_numeric(stock_df[col], errors="coerce").fillna(0).astype(int)
 
-    # Aggregate sales by product
     sales_agg = sales_df.groupby("Product", as_index=False).agg({
         "Quantity Sold": "sum",
         "Total": "sum",
@@ -70,7 +67,6 @@ def sanitize_and_prepare(sales_df, stock_df):
     })
     sales_agg.rename(columns={"Quantity Sold": "Total Sold", "Total": "Sales Value", "Profit": "Total Profit"}, inplace=True)
 
-    # Merge with stock
     merged = pd.merge(stock_df, sales_agg, on="Product", how="left")
     merged["Total Sold"] = merged["Total Sold"].fillna(0).astype(int)
     merged["Sales Value"] = merged["Sales Value"].fillna(0.0)
@@ -92,7 +88,6 @@ def main():
 
     sales_df, stock_df, merged = sanitize_and_prepare(sales_df_raw, stock_df_raw)
 
-    # KPI Cards
     col1, col2, col3, col4, col5 = st.columns([2,2,2,2,2])
     total_sales_value = sales_df['Total'].sum()
     total_units_sold = int(sales_df['Quantity Sold'].sum())
@@ -108,7 +103,6 @@ def main():
 
     st.markdown("---")
 
-    # Layout
     left, right = st.columns((2,1))
 
     with left:
@@ -117,7 +111,6 @@ def main():
             min_date = sales_df['Date'].min()
             max_date = sales_df['Date'].max()
             start_date, end_date = st.date_input("Select date range", value=(min_date.date(), max_date.date()))
-
             product_list = ['All'] + sorted(sales_df['Product'].dropna().unique().tolist())
             product_sel = st.selectbox("Filter by product", product_list)
 
@@ -141,8 +134,6 @@ def main():
             st.markdown("---")
             st.subheader("Sales Records")
             st.dataframe(filtered_sales.reset_index(drop=True))
-        else:
-            st.info("No sales data available.")
 
     with right:
         st.subheader("Stock Overview")
@@ -170,7 +161,8 @@ def main():
             merged.at[idx, 'Min Threshold'] = int(set_threshold)
             merged.at[idx, 'Current Stock'] = merged.at[idx, 'Opening Stock'] + merged.at[idx, 'Stock In'] - merged.at[idx, 'Stock Out'] - merged.at[idx, 'Total Sold']
 
-            row_num = stock_df[stock_df['Product'] == product_to_adjust].index[0] + 2
-            stock_ws.update_cell(row_num, stock_df.columns.get_loc("Stock In")+1, int(merged.at[idx,'Stock In']))
-            stock_ws.update_cell(row_num, stock_df.columns.get_loc("Stock Out")+1, int(merged.at[idx,'Stock Out']))
-            stock_ws.update_cell(row_num, stock_df.columns.get_loc("Min Threshold
+            stock_index = stock_df[stock_df['Product'] == product_to_adjust].index
+            if len(stock_index) == 0:
+                st.error(f"Product '{product_to_adjust}' not found in Stock sheet!")
+            else:
+                row_num = stock_index[0] + 2
