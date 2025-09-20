@@ -1,21 +1,26 @@
 # app.py
 # Sales & Stock Management Dashboard linked to a fixed Google Sheet with Profit calculation
+# Fixed imports and Streamlit data leak warning by setting page config first
 # Requirements: pip install streamlit pandas gspread oauth2client plotly
 
-import pandas as pd
-import streamlit as st
-import plotly.express as px
+# --- Standard library imports ------------------------------------------------
 from datetime import datetime
+
+# --- Streamlit setup --------------------------------------------------------
+import streamlit as st
+st.set_page_config(layout="wide", page_title="Sales & Stock Dashboard")
+
+# --- Third-party imports ----------------------------------------------------
+import pandas as pd
+import plotly.express as px
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# --- Config --------------------------------------------------------------
+# --- Config -----------------------------------------------------------------
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1r4BLV7NFdtagJPjjneqKyUrGbb1qnzyUqCaDuQHqFZU/edit?gid=0"
-CREDS_FILE = "service_account.json"  # make sure this file is in your app folder
+CREDS_FILE = "service_account.json"  # Make sure this file is in your app folder
 
-st.set_page_config(layout="wide", page_title="Sales & Stock Dashboard")
-
-# --- Google Sheets Setup -------------------------------------------------
+# --- Google Sheets Setup ---------------------------------------------------
 
 def get_gsheet_client(creds_file):
     scope = [
@@ -36,7 +41,7 @@ def load_data():
     stock_df = pd.DataFrame(stock_ws.get_all_records())
     return sales_df, stock_df, sales_ws, stock_ws
 
-# --- Data preparation ----------------------------------------------------
+# --- Data preparation -------------------------------------------------------
 
 def sanitize_and_prepare(sales_df, stock_df):
     sales_df = sales_df.copy()
@@ -74,7 +79,7 @@ def sanitize_and_prepare(sales_df, stock_df):
 
     return sales_df, stock_df, merged
 
-# --- Main App ------------------------------------------------------------
+# --- Main App ---------------------------------------------------------------
 
 def main():
     st.title("📊 Sales & Stock Management Dashboard (Google Sheets)")
@@ -168,12 +173,4 @@ def main():
             row_num = stock_df[stock_df['Product'] == product_to_adjust].index[0] + 2
             stock_ws.update_cell(row_num, stock_df.columns.get_loc("Stock In")+1, int(merged.at[idx,'Stock In']))
             stock_ws.update_cell(row_num, stock_df.columns.get_loc("Stock Out")+1, int(merged.at[idx,'Stock Out']))
-            stock_ws.update_cell(row_num, stock_df.columns.get_loc("Min Threshold")+1, int(merged.at[idx,'Min Threshold']))
-
-            st.success("Adjustment applied and updated in Google Sheet.")
-
-    st.markdown("---")
-    st.info("Data is loaded from a fixed Google Sheet. Adjustments made here are written back to the same sheet. Share the Google Sheet with your team for collaboration.")
-
-if __name__ == "__main__":
-    main()
+            stock_ws.update_cell(row_num, stock_df.columns.get_loc("Min Threshold
